@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>StellaNova Blockchain</title>
+</head>
+<body>
+    <h1>StellaNova Blockchain</h1>
+    <h2>Submit Transaction</h2>
+    <form action="/transaction" method="post">
+        <input type="text" name="sender" placeholder="Sender">
+        <input type="text" name="recipient" placeholder="Recipient">
+        <input type="number" name="amount" placeholder="Amount">
+        <input type="submit" value="Submit Transaction">
+    </form>
+    <h2>Blockchain</h2>
+    <ul>
+    {% for block in chain %}
+        <li>{{ block }}</li>
+    {% endfor %}
+    </ul>
+    <button onclick="location.href='/mine'">Mine Block</button>
+</body>
+</html>

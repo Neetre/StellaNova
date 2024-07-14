@@ -19,7 +19,7 @@ from time import time
 from urllib.parse import urlparse
 from uuid import uuid4
 import requests
-from flask import Flask, jsonify, request
+from flask import Flask, render_template, request, jsonify
 from argparse import ArgumentParser
 import logging
 from config import PROOF_OF_WORK_DIFFICULTY, MINING_REWARD
@@ -35,6 +35,8 @@ class Blockchain(object):
         self.current_transactions = []
         self.chain = []
         self.nodes = set()
+        self.mempool = Mempool()
+        self.smart_contracts = {}
         
         # create the genesis block
         self.new_block(previous_hash=1, proof=100)
@@ -46,15 +48,17 @@ class Blockchain(object):
         :param previous_hash: (Optional) <str> Hash of previous Block
         :return: <dict> New Block
         """
+        transactions = self.mempool.get_transactions(10)
         block = {
             'index' : len(self.chain) + 1,
             'timestamp' : time(),
-            'transactions' : self.current_transactions,
+            'transactions' : transactions,
             'proof' : proof,
             'previous_hash' : previous_hash or self.hash(self.chain[-1])
         }
         
         # Reset the current list of transactions
+        self.mempool.remove_transactions(transactions)
         self.current_transactions = []
         self.chain.append(block)
         
@@ -66,6 +70,7 @@ class Blockchain(object):
             'recipient': recipient,
             'amount': amount,
         }
+        self.mempool.add_transaction(transaction)
         if verify_signature(transaction, signature, public_key):
             self.current_transactions.append(transaction)
             return self.last_block['index'] + 1
@@ -147,21 +152,36 @@ class Blockchain(object):
         
         while current_index < len(chain):
             block = chain[current_index]
+
             print(f'{last_block}')
             print(f'{block}')
             print("\n-----------\n")
-            last_block_hash = self.hash(last_block)
-            if block['previous_hash'] != last_block_hash:
+
+            if block['previous_hash'] != self.hash(last_block):
                 return False
 
             # Check that the Proof of Work is correct
-            if not self.valid_proof(last_block['proof'], block['proof'], last_block_hash):
+            if not self.valid_proof(last_block['proof'], block['proof'], block['previous_hash']):
                 return False
+            
+            if block['timestamp'] <= last_block['timestamp']:
+                return False
+            
+            for transaction in block['transactions']:
+                if not self.valid_transaction(transaction):
+                    return False
 
             last_block = block
             current_index += 1
             
         return True
+    
+    def valid_transaction(self, transaction):
+        # This is a basic check. In a real implementation, you'd want to check things like:
+        # - Does the sender have enough balance?
+        # - Is the transaction signature valid?
+        # - Is the transaction format correct?
+        return all(k in transaction for k in ['sender', 'recipient', 'amount'])
     
     def resolve_conflicts(self):
         """
@@ -200,6 +220,22 @@ class Blockchain(object):
         if contract:
             return contract.execute(self, transaction)
         return False
+
+
+class Mempool:
+    def __init__(self):
+        self.transactions = []
+        
+    def add_transactions(self, transaction: object):
+        self.transactions.apend(transaction)
+        
+    def get_transactions(self, n):
+        return self.transactions[:n]
+    
+    def remove_transactions(self, transactions):
+        for transaction in transactions:
+            if transaction in self.transactions:
+                self.transactions.remove(transaction)
 
 
 class SmartContract:
@@ -274,6 +310,10 @@ else:
     
 contract = SmartContract(simple_contract)
 contract_address = blockchain.add_smart_contract(contract)
+
+@app.route('/')
+def index():
+    return render_template('index.html', chain=blockchain.chain)
 
 @app.route('/mine', methods=['GET'])
 def mine():
