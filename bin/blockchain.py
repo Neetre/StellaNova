@@ -1,21 +1,33 @@
+'''
+This program is a simple blockchain implementation with a proof of work algorithm.
+It also includes a simple smart contract system that allows users to add and execute
+smart contracts on the blockchain.
+
+The blockchain is implemented as a Flask application with the following endpoints:
+- /mine: mine a new block
+- /transactions/new: create a new transaction
+- /chain: get the full blockchain
+- /nodes/register: register a new node
+- /nodes/resolve: resolve conflicts between nodes
+
+Neetre 2024
+'''
+
 import hashlib
 import json
 from time import time
 from urllib.parse import urlparse
 from uuid import uuid4
-
 import requests
 from flask import Flask, jsonify, request
-
-import yaml
 from argparse import ArgumentParser
+import logging
+from config import PROOF_OF_WORK_DIFFICULTY, MINING_REWARD
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 
-with open("settings.yaml", 'r') as stream:
-    try:
-        settings = yaml.safe_load(stream)
-    except yaml.YAMLError as exc:
-        print(exc)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 class Blockchain(object):
@@ -48,22 +60,17 @@ class Blockchain(object):
         
         return block
     
-    def new_transaction(self, sender, recipient, amount):
-        """
-        Creates a new transaction to go into the next mined Block
-        :param sender: <str> Address of the Sender
-        :param recipient: <str> Address of the Recipient
-        :param amount: <int> Amount
-        :return: <int> The index of the Block that will hold this transaction
-        """
-        
-        self.current_transactions.append({
-            'sender' : sender,
-            'recipient' : recipient,
-            'amount' : amount,
-        })
-        
-        return self.last_block['index'] + 1
+    def new_transaction(self, sender, recipient, amount, signature, public_key):
+        transaction = {
+            'sender': sender,
+            'recipient': recipient,
+            'amount': amount,
+        }
+        if verify_signature(transaction, signature, public_key):
+            self.current_transactions.append(transaction)
+            return self.last_block['index'] + 1
+        else:
+            raise ValueError("Invalid transaction signature")
     
     @property
     def last_block(self):
@@ -89,14 +96,13 @@ class Blockchain(object):
         :param last_block: <dict> last Block
         :return: <int>
         """
-        
+        logging.info(f"Starting proof of work for block {last_block['index']}")
         last_proof = last_block['proof']
         last_hash = self.hash(last_block)
-
         proof = 0
         while self.valid_proof(last_proof, proof, last_hash) is False:
             proof += 1
-
+        logging.info(f"Proof of work completed. Proof: {proof}")
         return proof
     
     @staticmethod
@@ -110,7 +116,7 @@ class Blockchain(object):
         """
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:4] == settings['blockchain']['proof_of_work']['leading_zeros']
+        return guess_hash[:len(PROOF_OF_WORK_DIFFICULTY)] == PROOF_OF_WORK_DIFFICULTY
     
     def register_node(self, address):
         """
@@ -118,13 +124,17 @@ class Blockchain(object):
         :param address: <str> Address of node. Eg. 'http://192.168.0.5:5000'
         :return: None
         """
-        parsed_url = urlparse(address)
-        if parsed_url.netloc:
-            self.nodes.add(parsed_url.netloc)
-        elif parsed_url.path:
-            self.nodes.add(parsed_url.path)
-        else:
-            raise ValueError('Invalid URL')
+        try:
+            parsed_url = urlparse(address)
+            if parsed_url.netloc:
+                self.nodes.add(parsed_url.netloc)
+            elif parsed_url.path:
+                self.nodes.add(parsed_url.path)
+            else:
+                raise ValueError('Invalid URL')
+        except Exception as e:
+            logging.error(f"Error registering node {address}: {str(e)}")
+            raise
     
     def valid_chain(self, chain):
         """
@@ -180,6 +190,71 @@ class Blockchain(object):
         
         return False
     
+    def add_smart_contract(self, contract):
+        contract_address = hashlib.sha256(contract.code.encode()).hexdigest()
+        self.smart_contracts[contract_address] = contract
+        return contract_address
+    
+    def execute_smart_contract(self, contract_address, transaction):
+        contract = self.smart_contracts.get(contract_address)
+        if contract:
+            return contract.execute(self, transaction)
+        return False
+
+
+class SmartContract:
+    def __init__(self, code):
+        self.code = code
+
+    def execute(self, blockchain, transaction):
+        # This is a very simplified execution environment
+        # In a real implementation, you'd need a proper virtual machine
+        global_vars = {
+            'blockchain': blockchain,
+            'transaction': transaction,
+            'approve': lambda: True,
+            'reject': lambda: False
+        }
+        exec(self.code, global_vars)
+        return global_vars.get('result', False)
+
+
+def generate_keypair():
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
+    public_key = private_key.public_key()
+    return private_key, public_key
+
+
+def sign_transaction(transaction, private_key):
+    transaction_bytes = json.dumps(transaction, sort_keys=True).encode()
+    signature = private_key.sign(
+        transaction_bytes,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )
+    return signature
+
+def verify_signature(transaction, signature, public_key):
+    transaction_bytes = json.dumps(transaction, sort_keys=True).encode()
+    try:
+        public_key.verify(
+            signature,
+            transaction_bytes,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+        return True
+    except:
+        return False
 
 # Instantiate our Node
 app = Flask(__name__)
@@ -190,6 +265,16 @@ node_identifier = str(uuid4()).replace('-', '')
 # Instatiate the Blockchain
 blockchain = Blockchain()
 
+simple_contract = """
+if transaction['amount'] > 100:
+    result = reject()
+else:
+    result = approve()
+"""
+    
+contract = SmartContract(simple_contract)
+contract_address = blockchain.add_smart_contract(contract)
+
 @app.route('/mine', methods=['GET'])
 def mine():
     last_block = blockchain.last_block
@@ -198,7 +283,7 @@ def mine():
     blockchain.new_transaction(
         sender='0',
         recipient=node_identifier,
-        amount=1,
+        amount=MINING_REWARD,
     )
     
     previous_hash = blockchain.hash(last_block)
