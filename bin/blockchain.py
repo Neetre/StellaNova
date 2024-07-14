@@ -37,6 +37,7 @@ class Blockchain(object):
         self.nodes = set()
         self.mempool = Mempool()
         self.smart_contracts = {}
+        self.balances = {}
         
         # create the genesis block
         self.new_block(previous_hash=1, proof=100)
@@ -64,22 +65,48 @@ class Blockchain(object):
         
         return block
     
-    def new_transaction(self, sender, recipient, amount, signature, public_key):
+    def new_transaction(self, sender, recipient, amount, signature=None, public_key=None):
         transaction = {
             'sender': sender,
             'recipient': recipient,
             'amount': amount,
         }
-        self.mempool.add_transaction(transaction)
-        if verify_signature(transaction, signature, public_key):
-            self.current_transactions.append(transaction)
-            return self.last_block['index'] + 1
+        if signature and public_key:
+            if verify_signature(transaction, signature, public_key):
+                if self.check_balance(transaction):
+                    self.update_balances(transaction)
+                    self.mempool.add_transaction(transaction)
+                    return self.last_block['index'] + 1
+                else:
+                    raise ValueError("Insufficient balance")
+            else:
+                raise ValueError("Invalid transaction signature")
         else:
-            raise ValueError("Invalid transaction signature")
+            if self.check_balance(sender, amount):
+                self.update_balances(transaction)
+                self.mempool.add_transactions(transaction)
+                return self.last_block['index'] + 1
+            else:
+                raise ValueError("Insufficient balance")
+            
+    def check_balance(self, account, amount):
+        return account == "0" or (account in self.balances and self.balances[account] >= amount)
     
     @property
     def last_block(self):
         return self.chain[-1]
+    
+    def update_balances(self, transaction):
+        sender = transaction['sender']
+        recipient = transaction['recipient']
+        amount = transaction['amount']
+        
+        if sender != "0":  # "0" is used for mining rewards
+            if sender not in self.balances or self.balances[sender] < amount:
+                raise ValueError("Insufficient balance")
+            self.balances[sender] -= amount
+            
+        self.balances[recipient] = self.balances.get(recipient, 0) + amount
     
     @staticmethod
     def hash(block):
@@ -227,7 +254,7 @@ class Mempool:
         self.transactions = []
         
     def add_transactions(self, transaction: object):
-        self.transactions.apend(transaction)
+        self.transactions.append(transaction)
         
     def get_transactions(self, n):
         return self.transactions[:n]
@@ -236,6 +263,20 @@ class Mempool:
         for transaction in transactions:
             if transaction in self.transactions:
                 self.transactions.remove(transaction)
+
+
+class PeerDiscovery:
+    def __init__(self, registy_url):
+        self.registry_url = registy_url
+        
+    def register(self, node_url):
+        data = {"url": node_url}
+        response = requests.post(f"{self.registry_url}/register", json=data)
+        return response.json()
+    
+    def get_peers(self):
+        response = requests.get(f"{self.registry_url}/peers")
+        return response.json()
 
 
 class SmartContract:
@@ -311,6 +352,14 @@ else:
 contract = SmartContract(simple_contract)
 contract_address = blockchain.add_smart_contract(contract)
 
+# peer_discovery = PeerDiscovery("http://registry-server-url")
+# my_url = "http://my_node_url"
+# peer_discovery.register(my_url)
+
+# peers = peer_discovery.get_peers()
+# for peer in peers:
+#     blockchain.register_node(peer)
+
 @app.route('/')
 def index():
     return render_template('index.html', chain=blockchain.chain)
@@ -340,16 +389,18 @@ def mine():
 
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
-    values = request.get_json()
-    
-    # Check that the required fields are in the POST'ed data
-    required = ['sender', 'recipient', 'amount']
-    if not all(k in values for k in required):
-        return 'Missing values', 400
-    
-    index = blockchain.new_transaction(values['sender'], values['recipient'], values['amount'])
-    response = {'message': f'Transaction will be added to Block {index}'}
-    return jsonify(response), 201
+    try:
+        values = request.get_json()
+        required = ['sender', 'recipient', 'amount']
+        if not all(k in values for k in required):
+            return jsonify({'error': 'Missing values'}), 400
+        
+        # Add signature verification here if implemented
+        index = blockchain.new_transaction(values['sender'], values['recipient'], values['amount'])
+        response = {'message': f'Transaction will be added to Block {index}'}
+        return jsonify(response), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/chain', methods=['GET'])
 def full_chain():
