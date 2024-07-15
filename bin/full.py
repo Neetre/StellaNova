@@ -1,18 +1,34 @@
 '''
 This program is a simple blockchain implementation with a proof of work algorithm.
+It also includes a simple smart contract system that allows users to add and execute
+smart contracts on the blockchain.
+
+The blockchain is implemented as a Flask application with the following endpoints:
+- /mine: mine a new block
+- /transactions/new: create a new transaction
+- /chain: get the full blockchain
+- /nodes/register: register a new node
+- /nodes/resolve: resolve conflicts between nodes
 
 Neetre 2024
 '''
 
 import hashlib
 import json
+import time
 from time import time
 from urllib.parse import urlparse
 import requests
 import logging
-from config import PROOF_OF_WORK_DIFFICULTY
-from security import verify_signature
-from mempool import Mempool
+from config import PROOF_OF_WORK_DIFFICULTY, MINING_REWARD
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from uuid import uuid4
+from flask import Flask, render_template, request, jsonify
+from argparse import ArgumentParser
+import threading
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 class Blockchain(object):
@@ -232,3 +248,249 @@ class Blockchain(object):
         if contract:
             return contract.execute(self, transaction)
         return False
+
+
+class Mempool:
+    def __init__(self):
+        self.transactions = []
+        
+    def add_transactions(self, transaction: object):
+        self.transactions.append(transaction)
+        
+    def get_transactions(self, n):
+        return self.transactions[:n]
+    
+    def remove_transactions(self, transactions):
+        for transaction in transactions:
+            if transaction in self.transactions:
+                self.transactions.remove(transaction)
+
+
+class SmartContract:
+    def __init__(self, code):
+        self.code = code
+
+    def execute(self, blockchain, transaction):
+        # This is a very simplified execution environment
+        # In a real implementation, you'd need a proper virtual machine
+        global_vars = {
+            'blockchain': blockchain,
+            'transaction': transaction,
+            'approve': lambda: True,
+            'reject': lambda: False
+        }
+        exec(self.code, global_vars)
+        return global_vars.get('result', False)
+
+
+def generate_keypair():
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
+    public_key = private_key.public_key()
+    return private_key, public_key
+
+
+def sign_transaction(transaction, private_key):
+    transaction_bytes = json.dumps(transaction, sort_keys=True).encode()
+    signature = private_key.sign(
+        transaction_bytes,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )
+    return signature
+
+def verify_signature(transaction, signature, public_key):
+    transaction_bytes = json.dumps(transaction, sort_keys=True).encode()
+    try:
+        public_key.verify(
+            signature,
+            transaction_bytes,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+        return True
+    except:
+        return False
+
+
+class PeerDiscovery:
+    def __init__(self, registy_url):
+        self.registry_url = registy_url
+        self.known_peers = set()
+        
+    def register(self, node_url):
+        try:
+            data = {"url": node_url}
+            response = requests.post(f"{self.registry_url}/register", json=data)
+            if response.status_code == 200:
+                logging.info(f"Successfully registered node {node_url}")
+                return response.json()
+            else:
+                logging.error(f"Failed to register node {node_url}. Status code {response.status_code}")
+                return None
+        except requests.RequestException as e:
+            logging.error(f"Error registering node {node_url}: {str(e)}")
+            return None
+    
+    def get_peers(self):
+        try:
+            response = requests.get(f"{self.registry_url}/peers")
+            if response.status_code == 200:
+                new_peers = set(response.json())
+                self.known_peers.update(new_peers)
+                return list(self.known_peers)
+            else:
+                logging.error(f"Failed to get peers. Status code: {response.status_code}")
+                return list(self.known_peers)
+        except requests.RequestException as e:
+            logging.error(f"Error getting peers: {str(e)}")
+            return list(self.known_peers)
+        
+    def add_peer(self, peer_url):
+        self.known_peers.add(peer_url)
+    
+    def remove_peer(self, peer_url):
+        self.known_peers.discard(peer_url)
+
+
+# Instantiate our Node
+app = Flask(__name__)
+
+# Generate a globally unique address for this node
+node_identifier = str(uuid4()).replace('-', '')
+
+# Instatiate the Blockchain
+blockchain = Blockchain()
+
+simple_contract = """
+if transaction['amount'] > 100:
+    result = reject()
+else:
+    result = approve()
+"""
+    
+contract = SmartContract(simple_contract)
+contract_address = blockchain.add_smart_contract(contract)
+
+registry_url = "http://127.0.0.1:5001"  # Replace with your actual registry server URL
+peer_discovery = PeerDiscovery(registry_url)
+
+my_node_url = "http://127.0.0.1:5000"  # Replace with your actual node URL
+peer_discovery.register(my_node_url)
+
+
+@app.route('/')
+def index():
+    return render_template('index.html', chain=blockchain.chain)
+
+@app.route('/mine', methods=['GET'])
+def mine():
+    last_block = blockchain.last_block
+    proof = blockchain.proof_or_work(last_block)
+    
+    blockchain.new_transaction(
+        sender='0',
+        recipient=node_identifier,
+        amount=MINING_REWARD,
+    )
+    
+    previous_hash = blockchain.hash(last_block)
+    block = blockchain.new_block(proof, previous_hash)
+
+    response = {
+        'message': "New Block Forged",
+        'index': block['index'],
+        'transactions': block['transactions'],
+        'proof': block['proof'],
+        'previous_hash': block['previous_hash'],
+    }
+    return jsonify(response), 200
+
+@app.route('/transactions/new', methods=['POST'])
+def new_transaction():
+    try:
+        values = request.get_json()
+        required = ['sender', 'recipient', 'amount']
+        if not all(k in values for k in required):
+            return jsonify({'error': 'Missing values'}), 400
+        
+        # Add signature verification here if implemented
+        index = blockchain.new_transaction(values['sender'], values['recipient'], values['amount'])
+        response = {'message': f'Transaction will be added to Block {index}'}
+        return jsonify(response), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/chain', methods=['GET'])
+def full_chain():
+    response = {
+        'chain' : blockchain.chain,
+        'length' : len(blockchain.chain)
+    }
+    return jsonify(response), 200
+
+@app.route('/nodes/register', methods=['POST'])
+def register_nodes():
+    values = request.get_json()
+    nodes = values.get('nodes')
+    if nodes is None:
+        return "Error: Please supply a valid list of nodes", 400
+
+    for node in nodes:
+        blockchain.register_node(node)
+        peer_discovery.add_peer(node)
+
+    response = {
+        'message': 'New nodes have been added',
+        'total_nodes': list(blockchain.nodes),
+    }
+    return jsonify(response), 201
+
+@app.route('/nodes/peers', methods=['GET'])
+def get_peers():
+    peers = peer_discovery.get_peers()
+    return jsonify(peers), 200
+
+@app.route('/nodes/resolve', methods=['GET'])
+def consensus():
+    replaced = blockchain.resolve_conflicts()
+    
+    if replaced:
+        response = {
+            'message' : 'Our chain was replaced',
+            'new_chain' : blockchain.chain
+        }
+    else:
+        response = {
+            'message' : 'Our chain is authoritative',
+            'chain' : blockchain.chain
+        }
+    return jsonify(response), 200
+
+def update_peers_periodically():
+    while True:
+        peers = peer_discovery.get_peers()
+        for peer in peers:
+            blockchain.register_node(peer)
+        time.sleep(300)
+
+
+peer_update_thread = threading.Thread(target=update_peers_periodically)
+peer_update_thread.start()
+
+
+if __name__ == '__main__':
+    parser = ArgumentParser()
+    parser.add_argument('-p', '--port', default=5000, type=int, help='port to listen on')
+    args = parser.parse_args()
+    port = args.port
+
+    app.run(host='0.0.0.0', port=port)
