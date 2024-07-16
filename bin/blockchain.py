@@ -74,6 +74,13 @@ class Blockchain():
             else:
                 raise ValueError("Insufficient balance")
             
+    def get_transaction(self, transaction_id):
+        for block in self.chain:
+            for transaction in block['transactions']:
+                if transaction['id'] == transaction_id:
+                    return transaction
+        return None
+            
     def check_balance(self, account, amount):
         return account == "0" or (account in self.balances and self.balances[account] >= amount)
     

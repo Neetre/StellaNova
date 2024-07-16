@@ -77,7 +77,7 @@ class LatestBlock(Resource):
 class BlockchainHeight(Resource):
     def get(self):
         # get the current height of the blockchain
-        pass
+        return jsonify({'height': len(blockchain.chain)}), 200
 
 
 class Mine(Resource):
@@ -146,13 +146,17 @@ class Transactions(Resource):
 class PendingTransactions(Resource):
     def get(self):
         # get all pending transactions in the mempool
-        pass
+        return jsonify(blockchain.current_transactions), 200
 
 
 class TransactionDetails(Resource):
     def get(self, txid):
         # get details of a specific transaction
-        pass
+        transaction = blockchain.get_transaction(txid)
+        if transaction:
+            return jsonify(transaction), 200
+        else:
+            return jsonify({'error': 'Transaction not found'}), 404
 
 
 class Wallet(Resource):
