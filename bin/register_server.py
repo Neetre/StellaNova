@@ -5,6 +5,7 @@ Neetre 2024
 '''
 
 from flask import Flask, jsonify, request
+import logging
 
 app = Flask(__name__)
 registered_nodes = set()
@@ -20,6 +21,7 @@ def register_node():
         'message': 'Node registered successfully',
         'total_nodes': list(registered_nodes)
     }
+    logging.info(f"Registered node: {node}")
     return jsonify(response), 200
 
 @app.route('/peers', methods=['GET'])

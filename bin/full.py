@@ -27,6 +27,8 @@ from uuid import uuid4
 from flask import Flask, render_template, request, jsonify
 from argparse import ArgumentParser
 import threading
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -418,14 +420,37 @@ def mine():
 def new_transaction():
     try:
         values = request.get_json()
-        required = ['sender', 'recipient', 'amount']
+        required = ['sender', 'recipient', 'amount', 'public_key', 'signature']
         if not all(k in values for k in required):
             return jsonify({'error': 'Missing values'}), 400
         
-        # Add signature verification here if implemented
-        index = blockchain.new_transaction(values['sender'], values['recipient'], values['amount'])
-        response = {'message': f'Transaction will be added to Block {index}'}
-        return jsonify(response), 201
+        # Convert the public key from string to key object
+        public_key = serialization.load_pem_public_key(
+            values['public_key'].encode(),
+            backend=default_backend()
+        )
+        
+        # Create the transaction
+        transaction = {
+            'sender': values['sender'],
+            'recipient': values['recipient'],
+            'amount': values['amount']
+        }
+        
+        # Verify the signature
+        signature = bytes.fromhex(values['signature'])
+        if verify_signature(transaction, signature, public_key):
+            index = blockchain.new_transaction(
+                values['sender'], 
+                values['recipient'], 
+                values['amount'],
+                signature,
+                public_key
+            )
+            response = {'message': f'Transaction will be added to Block {index}'}
+            return jsonify(response), 201
+        else:
+            return jsonify({'error': 'Invalid signature'}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -474,6 +499,40 @@ def consensus():
             'chain' : blockchain.chain
         }
     return jsonify(response), 200
+
+@app.route('/generate_keypair', methods=['GET'])
+def generate_new_keypair():
+    private_key, public_key = generate_keypair()
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    return jsonify({
+        'private_key': private_pem.decode(),
+        'public_key': public_pem.decode()
+    }), 200
+    
+@app.route('/contracts/deploy', methods=['POST'])
+def deploy_contract():
+    values = request.get_json()
+    if 'code' not in values:
+        return 'Error: Please supply contract code', 400
+    contract = SmartContract(values['code'])
+    address = blockchain.add_smart_contract(contract)
+    return jsonify({'message': 'Contract deployed', 'address': address}), 201
+
+@app.route('/contracts/execute', methods=['POST'])
+def execute_contract():
+    values = request.get_json()
+    if not all(k in values for k in ['address', 'transaction']):
+        return 'Error: Missing values', 400
+    result = blockchain.execute_smart_contract(values['address'], values['transaction'])
+    return jsonify({'result': result}), 200
 
 def update_peers_periodically():
     while True:

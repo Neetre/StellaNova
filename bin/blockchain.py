@@ -15,7 +15,7 @@ from security import verify_signature
 from mempool import Mempool
 
 
-class Blockchain(object):
+class Blockchain():
     def __init__(self) -> None:
         self.current_transactions = []
         self.chain = []

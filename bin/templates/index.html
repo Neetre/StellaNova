@@ -6,10 +6,12 @@
 <body>
     <h1>StellaNova Blockchain</h1>
     <h2>Submit Transaction</h2>
-    <form action="/transaction" method="post">
+    <form action="/transactions/new" method="post">
         <input type="text" name="sender" placeholder="Sender">
         <input type="text" name="recipient" placeholder="Recipient">
         <input type="number" name="amount" placeholder="Amount">
+        <input type="text" name="public_key" placeholder="Public Key">
+        <input type="text" name="signature" placeholder="Signature">
         <input type="submit" value="Submit Transaction">
     </form>
     <h2>Blockchain</h2>
