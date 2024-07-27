@@ -1,5 +1,6 @@
 '''
-This is a simple security module that provides functions for generating keypairs, signing transactions, and verifying signatures
+This is a simple security module that provides functions for generating keypairs, signing transactions, verifying signatures,
+
 
 Neetre 2024
 '''
@@ -10,6 +11,8 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import serialization
+
+import numpy as np
 
 
 class Security:
@@ -37,9 +40,9 @@ class Security:
         return encrypted_password
     
     @staticmethod
-    def decrypt_password(password, key):
+    def decrypt_password(enc_password, key):
         f = Fernet(key)
-        dec_password = f.decrypt(password).decode("utf-8")
+        dec_password = f.decrypt(enc_password).decode("utf-8")
         return dec_password
     
     @staticmethod
@@ -111,5 +114,8 @@ class Security:
             return False
 
     # 2FA
-    def email_verific(self):
-        pass
+    @staticmethod
+    def generate_2FA_code():
+        # 6 cifers, random
+        code = np.random.randint(100000, 999999)
+        return code

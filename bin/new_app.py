@@ -179,7 +179,7 @@ class Wallet(Resource):
 
 class WalletBalance(Resource):
     def get(self, address):
-        # get the balance of a specific address
+        # get the balance of a specific address (public_key)
         pass
     
 class Contracts(Resource):

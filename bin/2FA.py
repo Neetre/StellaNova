@@ -1,62 +1,44 @@
-import smtplib
-from email import encoders
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email.mime.multipart import MIMEMultipart
-import ssl
-
 import os
-from dotenv import load_env
+import json
+from email_sender import send_email
+from email_templates import verification_code_subject, verification_code_body
+from security import Security
+from dotenv import load_dotenv
+load_dotenv()
 
-load_env()
 
-EMAIL = os.environ.get('EMAIL')
-PASSWORD = os.environ.get('EMAIL_PASSWORD')
+class MFA():
+    def __init__(self, stats_file="../data/stats.json"):
+        self.stats_file = stats_file
+        self.is_code_ok = False
 
-def send_emails(to_email, filepath = "../data/pillars_of_creation.jpg"):
-    context = ssl.create_default_context()
-
-    server = smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context)
-    server.login(EMAIL, PASSWORD)
-
-    msg = MIMEMultipart()
-    msg['From'] = EMAIL
-    msg['To'] = to_email
-    msg['Subject'] = "Test"
-    body = "Hello"
-    msg.attach(MIMEText(body, 'plain'))
-
-    try:
-        if not os.path.exists(filepath):
-            raise FileNotFoundError(f"File not found: {filepath}")
-        elif not os.path.isfile(filepath):
-            raise ValueError(f"Path is not a file: {filepath}")
-        elif filepath is not None:
-            filepath = filepath
-            filename = os.path.basename(filepath)
-            attachment = open(filepath, 'rb')
-
-            p = MIMEBase('application', 'octet-stream')
-            p.set_payload(attachment.read())
-
-            encoders.encode_base64(p)
-            p.add_header('Content-Disposition', f'attachment; filename={filename}')
-            msg.attach(p)
-    except Exception as e:
-        print(f"Exception cought while reading filepath: {e}")
-
-    text = msg.as_string()
-    server.sendmail(EMAIL, to_email, text)
+    def load_stats(self):
+        stats = json.load(open(self.stats_file, "r"))
+        return stats
     
+    def save_code(self, new_code):
+        with open("../data/old_codes.b", "ab") as file:
+            file.write(new_code.encode('utf-8'))
 
-def send_email():
-    pass
+    def read_codes(self):
+        with open("../data/old_codes.b", "rb") as file:
+            reader = file.readlines()
+        return reader
 
+    def check_new_code(self, code):
+        reader = self.read_codes()
+        for old_code in reader[-10:]:
+            if old_code.decode("utf-8") == code:
+                return False
+            
+        return True
 
-def main():
-    to_email = input("Enter the email of the recipient: ").strip()
-    send_emails(to_email)
-    
+    def MFA(self):
+        while not self.is_code_ok:
+            code = Security.generate_2FA_code()
+            self.is_code_ok = self.check_new_code(code)
+            if self.is_code_ok:
+                self.save_code(code)
+                break
 
-if __name__ == "__main__":
-    main()
+        return code
