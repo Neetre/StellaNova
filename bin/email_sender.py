@@ -54,3 +54,7 @@ def send_email(to_email: str, subject: str, body: str, filepath: str = None):
 
     text = msg.as_string()
     server.sendmail(EMAIL, to_email, text)
+
+
+if __name__ == "__main__":
+    send_email("test@icloud.com", "Hello", "Little trolling")

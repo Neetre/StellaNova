@@ -18,7 +18,7 @@ import threading
 import logging
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
-from security import generate_keypair, sign_transaction, verify_signature
+from security import Security
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -98,7 +98,7 @@ def new_transaction():
         
         # Verify the signature
         signature = bytes.fromhex(values['signature'])
-        if verify_signature(transaction, signature, public_key):
+        if Security.verify_signature(transaction, signature, public_key):
             index = blockchain.new_transaction(
                 values['sender'], 
                 values['recipient'], 
@@ -161,7 +161,7 @@ def consensus():
 
 @app.route('/generate_keypair', methods=['GET'])
 def generate_new_keypair():
-    private_key, public_key = generate_keypair()
+    private_key, public_key = Security.generate_keypair()
     private_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,

@@ -8,9 +8,11 @@ load_dotenv()
 
 
 class MFA():
-    def __init__(self, stats_file="../data/stats.json"):
+    def __init__(self, username: str, to_email: str, stats_file="../data/stats.json"):
         self.stats_file = stats_file
         self.is_code_ok = False
+        self.username = username
+        self.to_email = to_email
 
     def load_stats(self):
         stats = json.load(open(self.stats_file, "r"))
@@ -32,8 +34,15 @@ class MFA():
                 return False
             
         return True
+    
+    def mfa_email(self, code: int):
+        send_email(self.to_email, verification_code_subject, verification_code_body.format(self.username, code))
 
     def MFA(self):
+        '''
+        This function does all the process for the
+        2FA verification
+        '''
         while not self.is_code_ok:
             code = Security.generate_2FA_code()
             self.is_code_ok = self.check_new_code(code)
@@ -41,4 +50,9 @@ class MFA():
                 self.save_code(code)
                 break
 
-        return code
+        self.mfa_email(code)
+
+
+if __name__ == "__main__":
+    Mfa = MFA("test@gmail.com", "Pippo")
+    Mfa.MFA()

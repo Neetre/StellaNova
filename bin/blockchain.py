@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import requests
 import logging
 from config import PROOF_OF_WORK_DIFFICULTY
-from security import verify_signature
+from security import Security
 from mempool import Mempool
 
 
@@ -57,7 +57,7 @@ class Blockchain():
             'amount': amount,
         }
         if signature and public_key:
-            if verify_signature(transaction, signature, public_key):
+            if Security.verify_signature(transaction, signature, public_key):
                 if self.check_balance(transaction):
                     self.update_balances(transaction)
                     self.mempool.add_transaction(transaction)
