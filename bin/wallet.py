@@ -5,10 +5,11 @@ class Wallet():
 
     trans_keys = ['sender', 'recipient', 'amount']
 
-    def __init__(self, id, name, surname, tell, email, password, country):
+    def __init__(self, id, name, surname, username, tell, email, password, country):
         self.__id = id
         self.__name = name
         self.__surname = surname
+        self.__username = username
         self.__tell = tell
         self.__email = email
         self.__country = country
