@@ -20,7 +20,11 @@ class DB_manager:
     def initialize_database(self):
         self.create_Wallet_table()
         self.create_Security_table()
+        self.create_Blocks_table()
         self.create_Transaction_table()
+        self.create_Mempool_table()
+        self.create_Contract_table()
+        self.create_Peer_table()
         self.create_Balance_table()
 
     def create_Wallet_table(self):
@@ -49,16 +53,30 @@ class DB_manager:
             FOREIGN KEY(wallet_id) REFERENCES wallet(id)
         )
         """)
+        
+    def create_Blocks_table(self):
+        self.execute_sql_command('''
+            CREATE TABLE IF NOT EXISTS Blocks (
+                block_hash TEXT PRIMARY KEY,
+                previous_hash TEXT,
+                nonce INTEGER,
+                timestamp TEXT,
+                transactions TEXT
+            )
+        ''')
 
     def create_Transaction_table(self):
-        self.execute_sql_command("""
-        CREATE TABLE IF NOT EXISTS transaction (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            transaction BLOB,
-            wallet_id TEXT,
-            FOREIGN KEY(wallet_id) REFERENCES wallet(id)
-        )
-        """)
+        self.execute_sql_command('''
+            CREATE TABLE IF NOT EXISTS Transactions (
+                transaction_id INTEGER PRIMARY KEY,
+                sender_address TEXT,
+                recipient_address TEXT,
+                amount FLOAT,
+                timestamp TEXT,
+                public_key TEXT,
+                signature TEXT
+            )
+        ''')
 
     def create_Balance_table(self):
         self.execute_sql_command("""
@@ -70,6 +88,38 @@ class DB_manager:
             FOREIGN KEY(wallet_id) REFERENCES wallet(id)
         )
         """)
+        
+    def create_Contract_table(self):
+        self.execute_sql_command('''
+            CREATE TABLE IF NOT EXISTS Contracts (
+                contract_id INTEGER PRIMARY KEY,
+                code TEXT,
+                address TEXT,
+                timestamp TEXT
+            )
+        ''')
+        
+    def create_Peer_table(self):
+        self.execute_sql_command('''
+            CREATE TABLE IF NOT EXISTS Peers (
+                peer_id INTEGER PRIMARY KEY,
+                ip_address TEXT,
+                port INTEGER,
+                public_key TEXT,
+            )
+        ''')
+        
+    def insert_wallet(self, public_key, private_key, balance, username, email, password):
+        self.execute_sql_command(f'''
+            INSERT INTO Wallet (public_key, private_key, balance, username, email, password)
+            VALUES ('{public_key}', '{private_key}', {balance}, '{username}', '{email}', '{password}')
+        ''')
+    
+    def insert_block(self, block_hash, previous_hash, nonce, timestamp, transactions):
+        self.execute_sql_command(f'''
+            INSERT INTO Blocks (block_hash, previous_hash, nonce, timestamp, transactions)
+            VALUES ('{block_hash}', '{previous_hash}', {nonce}, '{timestamp}', '{transactions}')
+        ''')
 
     # can be static? or should I make it self??
     def search_user(self, user_id):
