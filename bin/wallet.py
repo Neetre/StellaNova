@@ -1,5 +1,6 @@
 from security import Security
 from config import COIN_VALUE
+from data_manager import DB_manager
 
 class Wallet():
 
@@ -88,7 +89,8 @@ class Wallet():
     
     @key_pair.setter
     def key_pair(self):
-        self.__key_pair.append(Security.generate_key_pair(self.__enc_password))
+        pwd = Security.decrypt_password(self.__enc_password, DB_manager().search_key(self.__enc_password))
+        self.__key_pair.append(Security.generate_key_pair(pwd))
     
     @property
     def verified_email(self):

@@ -48,7 +48,7 @@ class DB_manager:
         CREATE TABLE IF NOT EXISTS security (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             key TEXT NOT NULL,
-            password TEXT NOT NULL,
+            enc_password TEXT NOT NULL,
             wallet_id TEXT NOT NULL,
             FOREIGN KEY(wallet_id) REFERENCES wallet(id)
         )
@@ -127,6 +127,13 @@ class DB_manager:
         SELECT * FROM wallet WHERE id = '{user_id}'
         """)
         return self.cursor.fetchone()
+    
+    def search_key(self, enc_password):
+        self.cursor.execute(f"""
+        SELECT * FROM security WHERE enc_password = '{enc_password}'
+        """)
+        pwd = self.cursor.fetchone()
+        return pwd[1]
 
     def execute_command(self, command):
         try:
