@@ -14,7 +14,7 @@ class Wallet():
         self.__email = email
         self.__country = country
         self.__enc_password = Security.generate(password)
-        self.__key_pair = None
+        self.__key_pair = []
         self.__verified_email = False
 
         self.__balance = 0 # cash
@@ -88,7 +88,7 @@ class Wallet():
     
     @key_pair.setter
     def key_pair(self):
-        self.__key_pair = Security.generate_key_pair(self.__enc_password)
+        self.__key_pair.append(Security.generate_key_pair(self.__enc_password))
     
     @property
     def verified_email(self):
