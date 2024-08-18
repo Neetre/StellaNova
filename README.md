@@ -22,6 +22,8 @@ These scripts will install required dependencies, and build a virtual environmen
 Run the script `./run.bat` on Windows to auto-run the base app for the blockchain.
 I will add a new script for Linux in the future.
 
+The app will be found at "http://127.0.0.1:5000".
+
 Each module has it's own testing functin in case you want to use the code in one of your programs.
 
 ## License
