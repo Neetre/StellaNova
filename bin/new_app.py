@@ -3,6 +3,7 @@ Neetre 2024
 '''
 
 import time
+import argparse
 from uuid import uuid4
 from flask import Flask, request, jsonify
 from flask_restful import Api, Resource
@@ -11,7 +12,6 @@ from config import MINING_REWARD
 from blockchain import Blockchain
 from peer_discovery import PeerDiscovery
 from contract import SmartContract
-import threading
 import logging
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
@@ -51,13 +51,13 @@ class NodeRegister(Resource):
             'message': 'New nodes have been added',
             'total_nodes': list(blockchain.nodes),
         }
-        return jsonify(response), 201
+        return response, 201
 
 
 class NodePeers(Resource):
     def get(self):
         peers = peer_discovery.get_peers()
-        return jsonify(peers), 200
+        return peers, 200
 
 
 class Blockchain(Resource):
@@ -66,18 +66,18 @@ class Blockchain(Resource):
             'chain' : blockchain.chain,
             'length' : len(blockchain.chain)
         }
-        return jsonify(response), 200
+        return response, 200
 
 
 class LatestBlock(Resource):
     def get(self):
-        return jsonify(blockchain.last_block), 200
+        return blockchain.last_block, 200
 
 
 class BlockchainHeight(Resource):
     def get(self):
         # get the current height of the blockchain
-        return jsonify({'height': len(blockchain.chain)}), 200
+        return {'height': len(blockchain.chain)}, 200
 
 
 class Mine(Resource):
@@ -101,7 +101,7 @@ class Mine(Resource):
             'proof': block['proof'],
             'previous_hash': block['previous_hash'],
         }
-        return jsonify(response), 200
+        return response, 200
 
 
 class Transactions(Resource):
@@ -140,13 +140,13 @@ class Transactions(Resource):
             else:
                 return jsonify({'error': 'Invalid signature'}), 400
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            return {'error': str(e)}, 500
 
 
 class PendingTransactions(Resource):
     def get(self):
         # get all pending transactions in the mempool
-        return jsonify(blockchain.current_transactions), 200
+        return blockchain.current_transactions, 200
 
 
 class TransactionDetails(Resource):
@@ -154,9 +154,9 @@ class TransactionDetails(Resource):
         # get details of a specific transaction
         transaction = blockchain.get_transaction(txid)
         if transaction:
-            return jsonify(transaction), 200
+            return transaction, 200
         else:
-            return jsonify({'error': 'Transaction not found'}), 404
+            return {'error': 'Transaction not found'}, 404
 
 
 class Wallet(Resource):
@@ -171,10 +171,10 @@ class Wallet(Resource):
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
-        return jsonify({
+        return {
             'private_key': private_pem.decode(),
             'public_key': public_pem.decode()
-        }), 200
+        }, 200
 
 
 class WalletBalance(Resource):
@@ -185,12 +185,14 @@ class WalletBalance(Resource):
 class Contracts(Resource):
     def post(self):
         # Deploy details of a specifric contract
-        pass
+        data = request.get_json()
     
 class ContractDetails(Resource):
     def get(self, address):
         # Get details of a specific contract
-        pass
+        for contract in SmartContract.list_of_contracts:
+            if contract.address == address:
+                return {'code': contract.code}, 200
     
 class ExecuteContract(Resource):
     def post(self, address):
@@ -228,4 +230,7 @@ api.add_resource(NetworkStatus, '/network/status')
 api.add_resource(NetworkSync, '/network/sync')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    args = argparse.ArgumentParser()
+    args.add_argument('--port', default=5000, type=int)
+    args = args.parse_args()
+    app.run(debug=True, port=args.port)

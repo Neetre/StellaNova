@@ -23,7 +23,7 @@ class Wallet():
     @property
     def id(self):
         return self.__id
-    
+
     @id.setter
     def id(self, new_id):
         self.__id = new_id

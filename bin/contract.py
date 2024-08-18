@@ -5,8 +5,13 @@ Neetre 2024
 '''
 
 class SmartContract:
+    
+    list_of_contracts = []
+    
     def __init__(self, code):
         self.code = code
+        self.__address = None
+        SmartContract.list_of_contracts.append(self)
 
     def execute(self, blockchain, transaction):
         # This is a very simplified execution environment
@@ -19,3 +24,11 @@ class SmartContract:
         }
         exec(self.code, global_vars)
         return global_vars.get('result', False)
+    
+    @property
+    def address(self):
+        return self.__address
+    
+    @address.setter
+    def address(self, address):
+        self.__address = address
