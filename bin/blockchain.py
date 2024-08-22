@@ -51,6 +51,24 @@ class Blockchain():
         return block
     
     def new_transaction(self, sender, recipient, amount, signature=None, public_key=None):
+        """
+        Creates a new transaction to go into the next mined Block
+
+        Args:
+            sender (str): the address of the sender
+            recipient (str): the address of the recipient
+            amount (int): the amount to be sent
+            signature (str, optional): the signature of the transaction. Defaults to None.
+            public_key (str, optional): the public key of the sender. Defaults to None.
+
+        Raises:
+            ValueError: no more money
+            ValueError: invalid transaction signature
+            ValueError: insufficient balance
+
+        Returns:
+            _type_: _description_
+        """
         transaction = {
             'sender': sender,
             'recipient': recipient,

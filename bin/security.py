@@ -87,7 +87,7 @@ class Security:
 
 
     @staticmethod
-    def sign_transaction(self, transaction, pem, password):
+    def sign_transaction(transaction, pem, password):
         transaction_bytes = json.dumps(transaction, sort_keys=True).encode("utf-8")
         private_key = Security.decode_pem(pem, password)
         signature = private_key.sign(

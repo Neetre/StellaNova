@@ -4,6 +4,15 @@
 
 StellaNova is a blockchain for the StellaNova coin. It is a simple blockchain that allows for the creation of new blocks, the mining of new blocks, and the validation of blocks. The blockchain is written in Python and uses the Flask web framework to create a simple web interface for interacting with the blockchain.
 
+## Improvements
+
+- [ ] Add a simple wallet explorer for viewing wallets
+- [ ] Add a simple transaction explorer for viewing transactions
+- [ ] Add a simple mining explorer for viewing mining statistics
+- [ ] Improve the mining algorithm to be more secure
+- [ ] Improve the web interface to be more user-friendly and with more features
+- [ ] Use all the features of the blockchain in a real-world application
+
 ## Requirements
 
 python >= 3.9
