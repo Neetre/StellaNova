@@ -1,7 +1,6 @@
 '''
 This is a simple security module that provides functions for generating keypairs, signing transactions, verifying signatures,
 
-
 Neetre 2024
 '''
 
