@@ -1,3 +1,6 @@
+# Folders
 .venv/
-.env
 __pycache__/
+
+# Files
+.env

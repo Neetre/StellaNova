@@ -11,8 +11,8 @@ PASSWORD = os.environ.get('EMAIL_PASSWORD')
 
 SMTP_SERVERS = ['smtp.gmail.com']
 
-# 465 TLS
-# 587 SSL
+# 465 SSL
+# 587 TSL
 
 def smtp_server(email):
     domain = email.split("@")[1]
@@ -24,7 +24,7 @@ def send_email(to_email: str, subject: str, body: str, filepath: str = None):
     server = smtp_server(to_email)
 
     context = ssl.create_default_context()
-    server = smtplib.SMTP_SSL(server, 587, context=context)
+    server = smtplib.SMTP_SSL(server, 465, context=context)
     server.login(EMAIL, PASSWORD)
 
     msg = MIMEMultipart()
